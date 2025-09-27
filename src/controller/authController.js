@@ -1,10 +1,13 @@
-const { SignJWT, generateKeyPair, exportJWK } = require("jose")
+const { SignJWT, exportJWK } = require("jose")
+const crypto = require("crypto")
 const strategyFactory = require("../strategies/strategyFactory")
 const Tenant = require("../models/tenant")
+const RefreshToken = require("../models/refreshToken")
 
 class AuthController {
   constructor() {
     this.jwtExpiry = process.env.JWT_EXPIRY || "3600"
+    this.refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRES_IN || "7d"
   }
 
   async login(req, res) {
@@ -21,10 +24,11 @@ class AuthController {
 
       const strategy = strategyFactory.getStrategy("basic")
       const authResult = await strategy.authenticate({ username, password }, tenantId)
-      const token = await this.generateJWT(authResult, tenantId)
+      const tokens = await this.generateTokenPair(authResult, tenantId)
 
       res.json({
-        access_token: token,
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken,
         token_type: "Bearer",
         expires_in: Number.parseInt(this.jwtExpiry),
         scope: authResult.scopes.join(" "),
@@ -59,10 +63,11 @@ class AuthController {
 
       const strategy = strategyFactory.getStrategy("client_credentials")
       const authResult = await strategy.authenticate({ client_id, client_secret }, tenantId)
-      const token = await this.generateJWT(authResult, tenantId)
+      const tokens = await this.generateTokenPair(authResult, tenantId)
 
       res.json({
-        access_token: token,
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken,
         token_type: "Bearer",
         expires_in: Number.parseInt(this.jwtExpiry),
         scope: authResult.scopes.join(" "),
@@ -219,6 +224,123 @@ class AuthController {
         res.redirect(errorUrl.toString())
       }
     }
+  }
+
+  async refreshToken(req, res) {
+    try {
+      const { refresh_token, tenant_id } = req.body
+      const tenantId = tenant_id || req.params.tenant || "default"
+
+      if (!refresh_token) {
+        return res.status(400).json({
+          error: "invalid_request",
+          error_description: "Refresh token is required",
+        })
+      }
+
+      // Find and validate refresh token
+      const refreshTokenDoc = await RefreshToken.findOne({
+        tokenId: refresh_token,
+        tenantId,
+        revoked: false,
+        expiresAt: { $gt: new Date() },
+      })
+
+      if (!refreshTokenDoc) {
+        return res.status(401).json({
+          error: "invalid_grant",
+          error_description: "Invalid or expired refresh token",
+        })
+      }
+
+      // Get user/client info based on the refresh token
+      const User = require("../models/user")
+      const Client = require("../models/client")
+      
+      let authResult
+      if (refreshTokenDoc.userId) {
+        const user = await User.findById(refreshTokenDoc.userId)
+        if (!user || !user.active) {
+          throw new Error("User not found or inactive")
+        }
+        
+        const tenant = await Tenant.findOne({ tenantId, active: true })
+        authResult = {
+          subject: user._id.toString(),
+          tenantId: tenant.tenantId,
+          issuer: tenant.issuer,
+          scopes: refreshTokenDoc.scopes || user.scopes || ["read"],
+          audience: "api",
+        }
+      } else if (refreshTokenDoc.clientId) {
+        const client = await Client.findOne({ clientId: refreshTokenDoc.clientId, tenantId, active: true })
+        if (!client) {
+          throw new Error("Client not found or inactive")
+        }
+        
+        const tenant = await Tenant.findOne({ tenantId, active: true })
+        authResult = {
+          subject: client.clientId,
+          tenantId: tenant.tenantId,
+          issuer: tenant.issuer,
+          scopes: refreshTokenDoc.scopes || client.scopes || ["api:read"],
+          audience: "api",
+        }
+      }
+
+      // Generate new access token (keep same refresh token)
+      const accessToken = await this.generateJWT(authResult, tenantId)
+      
+      // Update last used timestamp
+      refreshTokenDoc.lastUsedAt = new Date()
+      await refreshTokenDoc.save()
+
+      res.json({
+        access_token: accessToken,
+        token_type: "Bearer",
+        expires_in: Number.parseInt(this.jwtExpiry),
+        scope: authResult.scopes.join(" "),
+      })
+    } catch (error) {
+      console.error("Refresh token error:", error.message)
+      res.status(401).json({
+        error: "invalid_grant",
+        error_description: error.message,
+      })
+    }
+  }
+
+  async generateTokenPair(authResult, tenantId) {
+    const accessToken = await this.generateJWT(authResult, tenantId)
+    const refreshToken = await this.generateRefreshToken(authResult, tenantId)
+    return { accessToken, refreshToken }
+  }
+
+  async generateRefreshToken(authResult, tenantId) {
+    const tokenId = crypto.randomBytes(32).toString('hex')
+    const expiresAt = new Date()
+    
+    // Parse refresh token expiry (supports formats like "7d", "30d", etc.)
+    const refreshExpiryMatch = this.refreshTokenExpiry.match(/^(\d+)([dhm])$/)
+    if (refreshExpiryMatch) {
+      const [, amount, unit] = refreshExpiryMatch
+      const multipliers = { m: 60000, h: 3600000, d: 86400000 }
+      expiresAt.setTime(expiresAt.getTime() + (parseInt(amount) * multipliers[unit]))
+    } else {
+      // Default to 7 days if parsing fails
+      expiresAt.setTime(expiresAt.getTime() + (7 * 24 * 60 * 60 * 1000))
+    }
+
+    await RefreshToken.create({
+      tokenId,
+      userId: authResult.user?.id || null,
+      clientId: authResult.client?.clientId || null,
+      tenantId,
+      scopes: authResult.scopes,
+      expiresAt,
+    })
+
+    return tokenId
   }
 }
 
