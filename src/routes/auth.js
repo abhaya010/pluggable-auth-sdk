@@ -5,10 +5,8 @@ const router = express.Router()
 
 router.post("/login", authController.login.bind(authController))
 router.post("/token", authController.token.bind(authController))
-router.post("/refresh", authController.refreshToken.bind(authController))
 router.post("/:tenant/login", authController.login.bind(authController))
 router.post("/:tenant/token", authController.token.bind(authController))
-router.post("/:tenant/refresh", authController.refreshToken.bind(authController))
 
 router.get("/auth/google", authController.googleAuth.bind(authController))
 router.get("/auth/google/callback", authController.googleCallback.bind(authController))
