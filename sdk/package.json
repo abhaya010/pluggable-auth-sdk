@@ -1,0 +1,17 @@
+{
+  "name": "modular-auth-sdk",
+  "version": "1.0.0",
+  "description": "Client SDK for the Modular Auth Service",
+  "main": "index.js",
+  "scripts": {
+    "test": "node ../example/sdk-usage.js"
+  },
+  "keywords": ["auth", "jwt", "sdk", "oauth2"],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {},
+  "peerDependencies": {}
+}

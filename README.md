@@ -1,1 +1,2 @@
-A modular, multi-tenant auth service + SDK issuing first-party JWTs, supporting OAuth2, OIDC, and Basic Auth.
+A modular, multi-tenant authentication service and SDK supporting OAuth2, OIDC, and Basic Auth with first-party JWT tokens.
+
