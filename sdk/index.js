@@ -8,6 +8,7 @@ class ModularAuthSDK {
     this.tenantId = options.tenantId || "tenant1"
     this.timeout = options.timeout || 5000
     this.accessToken = null
+    this.refreshToken = null
     this.tokenExpiry = null
   }
 
@@ -65,6 +66,14 @@ class ModularAuthSDK {
   }
 
   async makeAuthenticatedRequest(method, url, data = null, options = {}) {
+    // Auto-refresh if token is expired but refresh token exists
+    if (!this.isTokenValid() && this.refreshToken) {
+      const refreshResult = await this.refreshAccessToken()
+      if (!refreshResult.success) {
+        throw new Error("Failed to refresh token: " + refreshResult.error)
+      }
+    }
+
     if (!this.isTokenValid()) {
       throw new Error("No valid access token. Please authenticate first.")
     }
@@ -102,7 +111,39 @@ class ModularAuthSDK {
 
   logout() {
     this.accessToken = null
+    this.refreshToken = null
     this.tokenExpiry = null
+  }
+
+  async refreshAccessToken() {
+    try {
+      if (!this.refreshToken) {
+        throw new Error("No refresh token available")
+      }
+
+      const response = await this.makeRequest("POST", "/refresh", {
+        refresh_token: this.refreshToken,
+        tenant_id: this.tenantId,
+      })
+
+      this.accessToken = response.access_token
+      this.tokenExpiry = Date.now() + response.expires_in * 1000
+
+      return {
+        success: true,
+        accessToken: response.access_token,
+        tokenType: response.token_type,
+        expiresIn: response.expires_in,
+        scope: response.scope,
+      }
+    } catch (error) {
+      // If refresh fails, clear tokens
+      this.logout()
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
   }
 
   async getGoogleAuthUrl(redirectUri, state) {
