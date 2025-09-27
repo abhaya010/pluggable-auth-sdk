@@ -2,9 +2,6 @@ const { jwtVerify } = require("jose")
 const Tenant = require("../models/tenant")
 
 class JWTMiddleware {
-  constructor() {
-  }
-
   authenticate(options = {}) {
     return async (req, res, next) => {
       try {
@@ -80,10 +77,6 @@ class JWTMiddleware {
   async importPublicKey(pemKey) {
     const { createPublicKey } = require("crypto")
     return createPublicKey(pemKey)
-  }
-
-  static extractClaims(req) {
-    return req.user || null
   }
 }
 
