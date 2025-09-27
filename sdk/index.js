@@ -105,9 +105,64 @@ class ModularAuthSDK {
     this.tokenExpiry = null
   }
 
+  async getGoogleAuthUrl(redirectUri, state) {
+    try {
+      const url = new URL(`/${this.tenantId}/auth/google`, this.baseUrl)
+      if (redirectUri) url.searchParams.set("redirect_uri", redirectUri)
+      if (state) url.searchParams.set("state", state)
+      
+      return {
+        success: true,
+        authUrl: url.toString(),
+        message: "Redirect user to this URL for Google authentication"
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+  }
+
+  async handleGoogleCallback(code, state) {
+    try {
+      const response = await this.makeRequest("GET", `/${this.tenantId}/auth/google/callback`, null, {
+        headers: {
+          "Accept": "application/json"
+        },
+        query: { code, state }
+      })
+
+      this.accessToken = response.access_token
+      this.tokenExpiry = Date.now() + response.expires_in * 1000
+
+      return {
+        success: true,
+        accessToken: response.access_token,
+        tokenType: response.token_type,
+        expiresIn: response.expires_in,
+        scope: response.scope,
+        user: response.user,
+        authProvider: response.auth_provider
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+  }
+
   async makeRequest(method, path, data = null, options = {}) {
     return new Promise((resolve, reject) => {
-      const url = new URL(path, this.baseUrl)
+      let url = new URL(path, this.baseUrl)
+      
+      if (options.query) {
+        Object.entries(options.query).forEach(([key, value]) => {
+          url.searchParams.set(key, value)
+        })
+      }
+      
       const isHttps = url.protocol === "https:"
       const client = isHttps ? https : http
 
