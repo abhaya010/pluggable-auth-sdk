@@ -13,48 +13,48 @@ async function demonstrateSDK() {
     const loginResult = await authSDK.login("john.doe", "password123")
 
     if (loginResult.success) {
-      console.log("✓ Login successful")
+      console.log(" Login successful")
       console.log(`  Access Token: ${loginResult.accessToken.substring(0, 50)}...`)
       console.log(`  Expires In: ${loginResult.expiresIn} seconds`)
       console.log(`  Scope: ${loginResult.scope}\n`)
     } else {
-      console.log("✗ Login failed:", loginResult.error)
+      console.log(" Login failed:", loginResult.error)
       return
     }
 
     console.log("2. Testing authenticated request...")
     try {
-      console.log("✓ Token is valid and ready for API calls")
+      console.log(" Token is valid and ready for API calls")
       console.log(`  Current token: ${authSDK.getAccessToken() ? "Valid" : "Invalid"}\n`)
     } catch (error) {
-      console.log("✗ Authenticated request failed:", error.message)
+      console.log("Authenticated request failed:", error.message)
     }
 
-    console.log("3. Testing client credentials...")
+    console.log("Testing client credentials...")
     const clientResult = await authSDK.getClientToken("client123", "secret456")
 
     if (clientResult.success) {
-      console.log("✓ Client authentication successful")
+      console.log(" Client authentication successful")
       console.log(`  Access Token: ${clientResult.accessToken.substring(0, 50)}...`)
       console.log(`  Scope: ${clientResult.scope}\n`)
     } else {
-      console.log("✗ Client authentication failed:", clientResult.error)
+      console.log("Client authentication failed:", clientResult.error)
     }
 
     console.log("4. Testing JWKS retrieval...")
     const jwksResult = await authSDK.getJWKS()
 
     if (jwksResult.success) {
-      console.log("✓ JWKS retrieved successfully")
+      console.log(" JWKS retrieved successfully")
       console.log(`  Keys count: ${jwksResult.jwks.keys.length}`)
       console.log(`  Key ID: ${jwksResult.jwks.keys[0].kid}\n`)
     } else {
-      console.log("✗ JWKS retrieval failed:", jwksResult.error)
+      console.log("JWKS retrieval failed:", jwksResult.error)
     }
 
     console.log("5. Testing logout...")
     authSDK.logout()
-    console.log("✓ Logged out successfully")
+    console.log("Logged out successfully")
     console.log(`  Token valid: ${authSDK.isTokenValid()}`)
   } catch (error) {
     console.error("Demo error:", error.message)
