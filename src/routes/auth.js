@@ -7,6 +7,12 @@ router.post("/login", authController.login.bind(authController))
 router.post("/token", authController.token.bind(authController))
 router.post("/:tenant/login", authController.login.bind(authController))
 router.post("/:tenant/token", authController.token.bind(authController))
+
+router.get("/auth/google", authController.googleAuth.bind(authController))
+router.get("/auth/google/callback", authController.googleCallback.bind(authController))
+router.get("/:tenant/auth/google", authController.googleAuth.bind(authController))
+router.get("/:tenant/auth/google/callback", authController.googleCallback.bind(authController))
+
 router.get("/:tenant/.well-known/jwks.json", authController.jwks.bind(authController))
 router.get("/.well-known/jwks.json", authController.jwks.bind(authController))
 

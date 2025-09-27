@@ -1,5 +1,6 @@
 const BasicAuthStrategy = require("./basicAuthStrategy")
 const ClientCredentialsStrategy = require("./clientCredentialsStrategy")
+const GoogleOAuth2Strategy = require("./googleOAuth2Strategy")
 
 class StrategyFactory {
   constructor() {
@@ -10,6 +11,7 @@ class StrategyFactory {
   registerDefaultStrategies() {
     this.register(new BasicAuthStrategy())
     this.register(new ClientCredentialsStrategy())
+    this.register(new GoogleOAuth2Strategy())
   }
 
   register(strategy) {

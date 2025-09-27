@@ -142,6 +142,84 @@ class AuthController {
     const { createPublicKey } = require("crypto")
     return createPublicKey(pemKey)
   }
+
+  async googleAuth(req, res) {
+    try {
+      const tenantId = req.params.tenant || "tenant1"
+      const { redirect_uri, state } = req.query
+
+      const strategy = strategyFactory.getStrategy("google_oauth2")
+      const authResult = await strategy.initiateAuth(tenantId, redirect_uri, state)
+
+      res.redirect(authResult.authUrl)
+    } catch (error) {
+      console.error("Google auth initiation error:", error.message)
+      res.status(400).json({
+        error: "invalid_request",
+        error_description: error.message,
+      })
+    }
+  }
+
+  async googleCallback(req, res) {
+    try {
+      const tenantId = req.params.tenant || "tenant1"
+      const { code, state, error } = req.query
+
+      if (error) {
+        return res.status(400).json({
+          error: "access_denied",
+          error_description: error,
+        })
+      }
+
+      if (!code) {
+        return res.status(400).json({
+          error: "invalid_request",
+          error_description: "Authorization code is required",
+        })
+      }
+
+      const strategy = strategyFactory.getStrategy("google_oauth2")
+      const stateData = strategy.validateState(state, tenantId)
+
+      const authResult = await strategy.authenticate({ code }, tenantId)
+      const token = await this.generateJWT(authResult, tenantId)
+
+      const isJsonRequest = req.headers.accept?.includes("application/json")
+      
+      if (isJsonRequest) {
+        res.json({
+          access_token: token,
+          token_type: "Bearer",
+          expires_in: Number.parseInt(this.jwtExpiry),
+          scope: authResult.scopes.join(" "),
+          user: authResult.user,
+          auth_provider: "google"
+        })
+      } else {
+        const redirectUrl = new URL(process.env.CLIENT_REDIRECT_URL || "http://localhost:3001/auth/success")
+        redirectUrl.searchParams.set("token", token)
+        redirectUrl.searchParams.set("expires_in", this.jwtExpiry)
+        res.redirect(redirectUrl.toString())
+      }
+    } catch (error) {
+      console.error("Google callback error:", error.message)
+      
+      const isJsonRequest = req.headers.accept?.includes("application/json")
+      if (isJsonRequest) {
+        res.status(401).json({
+          error: "authentication_failed",
+          error_description: error.message,
+        })
+      } else {
+        const errorUrl = new URL(process.env.CLIENT_ERROR_URL || "http://localhost:3001/auth/error")
+        errorUrl.searchParams.set("error", "authentication_failed")
+        errorUrl.searchParams.set("error_description", error.message)
+        res.redirect(errorUrl.toString())
+      }
+    }
+  }
 }
 
 module.exports = new AuthController()

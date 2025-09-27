@@ -1,9 +1,8 @@
-const { jwtVerify, createRemoteJWKSet } = require("jose")
+const { jwtVerify } = require("jose")
 const Tenant = require("../models/tenant")
 
 class JWTMiddleware {
   constructor() {
-    this.jwksCache = new Map()
   }
 
   authenticate(options = {}) {
